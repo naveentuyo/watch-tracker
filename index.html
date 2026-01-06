@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horology Wishlist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        luxury: {
+                            900: '#1a1a1a',
+                            800: '#2d2d2d',
+                            accent: '#d4af37', // Gold
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [v-cloak] { display: none; }
+        body { background-color: #121212; color: #e5e5e5; }
+        .glass-panel { background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        /* Smooth fade for modal */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body>
+
+<div id="app" v-cloak class="min-h-screen flex flex-col p-6 max-w-7xl mx-auto">
+
+    <header class="flex flex-col md:flex-row justify-between items-center mb-10 pb-6 border-b border-gray-800">
+        <div>
+            <h1 class="text-4xl font-serif text-white tracking-wide">The Complication</h1>
+            <p class="text-gray-400 text-sm mt-1">Personal Watch Collection & Wishlist</p>
+        </div>
+        <div class="flex gap-4 mt-4 md:mt-0">
+            <button @click="triggerImport" class="text-xs text-gray-500 hover:text-white transition">Import JSON</button>
+            <button @click="exportData" class="text-xs text-gray-500 hover:text-white transition">Export JSON</button>
+            <button @click="openAddModal" class="bg-luxury-accent text-black px-6 py-2 rounded font-semibold hover:bg-yellow-500 transition shadow-lg">
+                + Add Watch
+            </button>
+            <input type="file" ref="fileInput" class="hidden" @change="handleFileUpload" accept=".json">
+        </div>
+    </header>
+
+    <div class="flex flex-col md:flex-row gap-4 mb-8">
+        <input 
+            v-model="searchQuery" 
+            placeholder="Search by name, brand, or tag..." 
+            class="glass-panel w-full md:w-1/3 px-4 py-3 rounded text-white focus:outline-none focus:border-luxury-accent transition"
+        >
+        
+        <select v-model="sortBy" class="glass-panel px-4 py-3 rounded text-gray-300 focus:outline-none cursor-pointer">
+            <option value="newest">Newest Added</option>
+            <option value="priceHigh">Price: High to Low</option>
+            <option value="priceLow">Price: Low to High</option>
+            <option value="name">Name (A-Z)</option>
+        </select>
+
+        <div class="ml-auto text-gray-500 self-center">
+            Total Value: <span class="text-luxury-accent font-mono">{{ formatCurrency(totalValue) }}</span>
+        </div>
+    </div>
+
+    <div v-if="filteredWatches.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div v-for="(watch, index) in filteredWatches" :key="watch.id" class="glass-panel rounded-xl overflow-hidden hover:shadow-2xl hover:shadow-luxury-accent/10 transition duration-300 group flex flex-col">
+            
+            <div class="relative h-64 overflow-hidden bg-gray-900 group">
+                <img :src="watch.image || 'https://via.placeholder.com/400x300?text=No+Image'" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                <div class="absolute top-2 right-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-xs font-mono text-white">
+                    {{ formatCurrency(watch.price) }}
+                </div>
+                <button @click="openEditModal(watch)" class="absolute bottom-2 right-2 bg-white text-black text-xs font-bold px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition shadow-lg">
+                    Edit Details
+                </button>
+            </div>
+
+            <div class="p-5 flex-grow flex flex-col">
+                <div class="flex justify-between items-start">
+                    <h2 class="text-xl font-bold text-white mb-2 leading-tight">{{ watch.name }}</h2>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <span v-for="tag in watch.tags" :key="tag" class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider bg-gray-700 text-gray-300">
+                        {{ tag }}
+                    </span>
+                </div>
+
+                <p class="text-gray-400 text-sm mb-4 line-clamp-3">{{ watch.description }}</p>
+
+                <div class="mt-auto pt-4 border-t border-gray-700 flex justify-between items-center">
+                    <div class="flex gap-3">
+                        <a v-if="watch.link" :href="watch.link" target="_blank" class="text-luxury-accent hover:underline text-sm font-semibold">Link &rarr;</a>
+                        <span v-else class="text-gray-600 text-sm">No Link</span>
+                    </div>
+                    
+                    <div class="flex gap-3 text-sm">
+                        <button @click="openEditModal(watch)" class="text-gray-400 hover:text-white transition">Edit</button>
+                        <button @click="deleteWatch(watch.id)" class="text-gray-600 hover:text-red-500 transition" title="Delete">Remove</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-else class="text-center py-20 opacity-50">
+        <p class="text-xl">No timepieces found.</p>
+        <p class="text-sm">Add one to start your collection.</p>
+    </div>
+
+    <transition name="fade">
+        <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div class="glass-panel bg-[#1e1e1e] w-full max-w-lg rounded-xl p-6 shadow-2xl relative">
+                <button @click="closeModal" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+                
+                <h2 class="text-2xl font-serif text-white mb-6">
+                    {{ isEditing ? 'Edit Timepiece' : 'Add Timepiece' }}
+                </h2>
+                
+                <form @submit.prevent="saveWatch" class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 uppercase mb-1">Watch Name</label>
+                        <input v-model="formWatch.name" required class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase mb-1">Price (USD)</label>
+                            <input v-model.number="formWatch.price" type="number" class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase mb-1">Tags (comma separated)</label>
+                            <input v-model="formWatch.tagsInput" placeholder="Diver, Swiss, Vintage..." class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-500 uppercase mb-1">Image URL</label>
+                        <input v-model="formWatch.image" placeholder="https://..." class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-500 uppercase mb-1">Description</label>
+                        <textarea v-model="formWatch.description" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-500 uppercase mb-1">Link to buy/view</label>
+                        <input v-model="formWatch.link" placeholder="https://..." class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-white focus:border-luxury-accent focus:outline-none">
+                    </div>
+
+                    <button type="submit" class="w-full bg-luxury-accent text-black font-bold py-3 rounded hover:bg-yellow-500 transition mt-4">
+                        {{ isEditing ? 'Save Changes' : 'Add to Collection' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </transition>
+
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                watches: [],
+                searchQuery: '',
+                sortBy: 'newest',
+                showModal: false,
+                isEditing: false, // Tracks if we are editing or adding
+                editingId: null,  // Tracks which ID is being edited
+                formWatch: {      // The data currently in the form
+                    name: '',
+                    price: null,
+                    image: '',
+                    description: '',
+                    link: '',
+                    tagsInput: ''
+                }
+            }
+        },
+        computed: {
+            filteredWatches() {
+                let result = this.watches;
+
+                // 1. Filter
+                if (this.searchQuery) {
+                    const lowerQuery = this.searchQuery.toLowerCase();
+                    result = result.filter(w => 
+                        w.name.toLowerCase().includes(lowerQuery) || 
+                        w.tags.some(t => t.toLowerCase().includes(lowerQuery)) ||
+                        w.description.toLowerCase().includes(lowerQuery)
+                    );
+                }
+
+                // 2. Sort
+                return result.sort((a, b) => {
+                    if (this.sortBy === 'priceHigh') return b.price - a.price;
+                    if (this.sortBy === 'priceLow') return a.price - b.price;
+                    if (this.sortBy === 'name') return a.name.localeCompare(b.name);
+                    return b.id - a.id; 
+                });
+            },
+            totalValue() {
+                return this.watches.reduce((sum, watch) => sum + (watch.price || 0), 0);
+            }
+        },
+        methods: {
+            // Opens the modal in "Add" mode
+            openAddModal() {
+                this.isEditing = false;
+                this.editingId = null;
+                // Clear form
+                this.formWatch = { name: '', price: null, image: '', description: '', link: '', tagsInput: '' };
+                this.showModal = true;
+            },
+            // Opens the modal in "Edit" mode, pre-filling data
+            openEditModal(watch) {
+                this.isEditing = true;
+                this.editingId = watch.id;
+                
+                // Copy data to formWatch (using Spread syntax to clone)
+                this.formWatch = { 
+                    ...watch, 
+                    tagsInput: watch.tags.join(', ') // Convert array back to string
+                };
+                
+                this.showModal = true;
+            },
+            // Handles both Saving New and Updating Existing
+            saveWatch() {
+                const tags = this.formWatch.tagsInput
+                    .split(',')
+                    .map(t => t.trim())
+                    .filter(t => t.length > 0);
+
+                const watchData = {
+                    name: this.formWatch.name,
+                    price: this.formWatch.price,
+                    image: this.formWatch.image,
+                    description: this.formWatch.description,
+                    link: this.formWatch.link,
+                    tags: tags
+                };
+
+                if (this.isEditing) {
+                    // Find the index of the watch we are editing
+                    const index = this.watches.findIndex(w => w.id === this.editingId);
+                    if (index !== -1) {
+                        // Update it, preserving the original ID
+                        this.watches[index] = { ...watchData, id: this.editingId };
+                    }
+                } else {
+                    // Add new watch to start of array
+                    this.watches.unshift({ ...watchData, id: Date.now() });
+                }
+
+                this.saveData();
+                this.closeModal();
+            },
+            deleteWatch(id) {
+                if(confirm('Remove this watch from your list?')) {
+                    this.watches = this.watches.filter(w => w.id !== id);
+                    this.saveData();
+                }
+            },
+            closeModal() {
+                this.showModal = false;
+                // Tiny timeout to clear data after fade out looks smoother
+                setTimeout(() => {
+                    this.isEditing = false;
+                    this.editingId = null;
+                    this.formWatch = { name: '', price: null, image: '', description: '', link: '', tagsInput: '' };
+                }, 300);
+            },
+            saveData() {
+                localStorage.setItem('watchWishlist', JSON.stringify(this.watches));
+            },
+            loadData() {
+                const saved = localStorage.getItem('watchWishlist');
+                if (saved) {
+                    this.watches = JSON.parse(saved);
+                } else {
+                    // Initial seed data
+                    this.watches = [
+                        {
+                            id: 1,
+                            name: "Omega Speedmaster Professional",
+                            price: 7000,
+                            image: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Omega_Speedmaster_Professional_Moonwatch.jpg",
+                            description: "The Moonwatch. A timeless chronograph with manual wind movement.",
+                            link: "https://www.omegawatches.com",
+                            tags: ["Chronograph", "Swiss", "Space"]
+                        }
+                    ];
+                }
+            },
+            formatCurrency(value) {
+                if (!value) return '$0';
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+            },
+            exportData() {
+                const dataStr = JSON.stringify(this.watches, null, 2);
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "my_watch_collection.json";
+                a.click();
+            },
+            triggerImport() {
+                this.$refs.fileInput.click();
+            },
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if (Array.isArray(json)) {
+                            this.watches = json;
+                            this.saveData();
+                            alert('Collection imported successfully!');
+                        } else {
+                            alert('Invalid JSON format.');
+                        }
+                    } catch (err) {
+                        alert('Error reading file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        },
+        mounted() {
+            this.loadData();
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
