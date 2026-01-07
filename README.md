@@ -1,6 +1,6 @@
 # Personal Watch Tracker
 
-An easy way to track the watches you like! It's a simple, single-file application to track your watch collection and wishlist. It runs entirely in your browser with no server or login.
+An easy way to track and admire the watches you like! It's a simple, single-file application to track your watch collection and wishlist. It runs entirely in your browser with no server or login.
 
 ## Features
 
